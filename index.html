@@ -1,0 +1,21 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Data Quality Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head><body style="font-family:sans-serif;padding:16px;background:#0b1220;color:#e5e7eb">
+<h2>Data Quality Dashboard — SQL Live</h2>
+<div>Tabla: <select id="tableSelect"></select> &nbsp; Columna (numérica): <select id="columnSelect"></select></div>
+<div id="stats"></div>
+<canvas id="nullsChart"></canvas>
+<canvas id="uniqueChart"></canvas>
+<canvas id="typesChart"></canvas>
+<canvas id="histChart"></canvas>
+<script>
+const tSel=document.getElementById('tableSelect'), cSel=document.getElementById('columnSelect'), stats=document.getElementById('stats');
+let nullsChart,uniqueChart,typesChart,histChart;
+async function api(p){const r=await fetch(p,{cache:"no-store"}); if(!r.ok) throw new Error(await r.text()); return r.json();}
+function mkChart(id,cfg){const el=document.getElementById(id); if(id==='nullsChart'&&nullsChart) nullsChart.destroy(); if(id==='uniqueChart'&&uniqueChart) uniqueChart.destroy(); if(id==='typesChart'&&typesChart) typesChart.destroy(); if(id==='histChart'&&histChart) histChart.destroy(); const ch=new Chart(el,cfg); if(id==='nullsChart') nullsChart=ch; if(id==='uniqueChart') uniqueChart=ch; if(id==='typesChart') typesChart=ch; if(id==='histChart') histChart=ch;}
+async function loadTables(){const {tables}=await api('/api/tables'); tSel.innerHTML=tables.map(t=>`<option>${t.schema}.${t.table}</option>`).join(''); if(tables.length) loadSummary();}
+async function loadSummary(){const tbl=tSel.value; const d=await api('/api/summary?table='+encodeURIComponent(tbl)); stats.textContent=`Filas: ${d.row_stats.total_rows} · Duplicadas: ${d.row_stats.duplicate_rows} (${(d.row_stats.duplicate_pct*100).toFixed(2)}%)`; const labels=d.columns.map(x=>x.name); mkChart('nullsChart',{type:'bar',data:{labels,datasets:[{label:'Nulos',data:d.columns.map(x=>x.nulls)}]}}); mkChart('uniqueChart',{type:'bar',data:{labels,datasets:[{label:'Únicos',data:d.columns.map(x=>x.unique)}]}}); const typeMap={}; d.columns.forEach(c=>typeMap[c.data_type]=(typeMap[c.data_type]||0)+1); mkChart('typesChart',{type:'pie',data:{labels:Object.keys(typeMap),datasets:[{data:Object.values(typeMap)}]}}); const numCols=d.columns.filter(c=>c.numeric_stats).map(c=>c.name); cSel.innerHTML=numCols.map(n=>`<option>${n}</option>`).join(''); if(numCols.length) loadHist();}
+async function loadHist(){const tbl=tSel.value; const col=cSel.value; if(!col) return; const {histogram}=await api(`/api/histogram?table=${encodeURIComponent(tbl)}&column=${encodeURIComponent(col)}&buckets=20`); mkChart('histChart',{type:'bar',data:{labels:histogram.map(h=>h.bucket),datasets:[{label:col,data:histogram.map(h=>h.count)}]}});}
+tSel.onchange=loadSummary; cSel.onchange=loadHist; loadTables();
+</script></body></html>
