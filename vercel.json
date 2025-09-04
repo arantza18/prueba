@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3"
+    }
+  },
+  "routes": [
+    { "src": "^/$", "dest": "/index.html" },
+    { "src": "^/api/(.*)$", "dest": "/api/index.py" }
+  ]
+}
